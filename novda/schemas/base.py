@@ -1,6 +1,8 @@
 import json
 from types import UnionType
-from typing import Union, get_origin, get_args, Optional, List, Any, Iterable, Annotated
+from typing import Union, get_origin, get_args, Any, get_type_hints, ForwardRef
+
+from ..exceptions import SchemaException
 
 
 class BaseSchemaMeta(type):
@@ -8,23 +10,31 @@ class BaseSchemaMeta(type):
         fields = ", ".join(f"{k}: {v.__name__}" for k, v in cls.__annotations__.items())
         return f"{cls.__name__}({fields})"
 
+
 class BaseSchema(metaclass=BaseSchemaMeta):
     def __init__(self, **kwargs):
-        annotations = self.__annotations__
+        annotations = get_type_hints(self.__class__)
+        # print(annotations)
 
         for field, field_type in annotations.items():
-            has_default = hasattr(self, field)
+            has_default = hasattr(type(self), field)
 
             if field in kwargs:
                 if not self._validate_type(kwargs[field], field_type):
-                    raise TypeError(
-                        f"Invalid type for field '{field}', expected {field_type}, got {type(kwargs[field])}"
-                    )
+                    raise SchemaException(field, but_got=kwargs[field].__class__.__name__, expected=field_type.__name__)
+
                 setattr(self, field, kwargs[field])
 
-            elif not has_default:
-                raise ValueError(f"Missing required field: {field}")
+            elif has_default:
+                if getattr(type(self), field, None) is not None:
+                    if not self._validate_type(getattr(type(self), field), field_type):
+                        raise SchemaException(field, but_got=getattr(type(self), field).__class__.__name__, expected=field_type.__name__)
+                setattr(self, field, getattr(type(self), field))
 
+            else:
+                raise SchemaException(field, missing=True)
+
+        self.validate()
 
     def as_dict(self) -> dict[str, Any]:
         result = {}
@@ -40,24 +50,36 @@ class BaseSchema(metaclass=BaseSchemaMeta):
     def dump_json(self) -> str:
         return json.dumps(self.as_dict())
 
-    def __iter__(self):
-        yield from self.__dict__.items()
+    def validate(self) -> None:
+        ...
+
 
     @staticmethod
-    def _validate_type(value, expected_type):
+    def _validate_type(value, expected_type, schema_cls=None):
+        """Validate value against expected type, resolving forward references"""
+
+        # Resolve forward references
+        if isinstance(expected_type, str):
+            if schema_cls is not None:
+                type_hints = get_type_hints(schema_cls)
+                expected_type = type_hints.get(expected_type, expected_type)
+
+        if isinstance(expected_type, ForwardRef):  # Python < 3.9 uses ForwardRef
+            expected_type = expected_type._evaluate(globals(), locals(), frozenset())
+
         origin = get_origin(expected_type)
 
         if origin is None:
             return isinstance(value, expected_type)
 
-        elif origin is Union or origin is UnionType:
-            return any(BaseSchema._validate_type(value, arg) for arg in get_args(expected_type))
+        elif origin is Union:
+            return any(BaseSchema._validate_type(value, arg, schema_cls) for arg in get_args(expected_type))
 
         elif origin is list:
             if not isinstance(value, list):
                 return False
             element_type = get_args(expected_type)[0]
-            return all(BaseSchema._validate_type(item, element_type) for item in value)
+            return all(BaseSchema._validate_type(item, element_type, schema_cls) for item in value)
 
         return False
 
@@ -68,12 +90,7 @@ class BaseSchema(metaclass=BaseSchemaMeta):
         fields = ", ".join(f"{k}={v!r}" for k, v in self.__dict__.items())
         return f"{self.__class__.__name__}({fields})"
 
+    def __iter__(self):
+        yield from self.__dict__.items()
 
-def validate_phone(number: str) -> bool:
-    print(number)
-    return True
 
-class User(BaseSchema):
-    phone: Annotated[str, validate_phone]
-
-user1 = User(phone="+91123456789")
