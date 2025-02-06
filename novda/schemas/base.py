@@ -1,5 +1,4 @@
 import json
-from types import UnionType
 from typing import Union, get_origin, get_args, Any, get_type_hints, ForwardRef
 
 from ..exceptions import SchemaException

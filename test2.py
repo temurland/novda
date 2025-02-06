@@ -1,9 +1,9 @@
 import httpx
-from starlette.applications import Starlette
+from starlette import Starlette
 from starlette.responses import HTMLResponse, JSONResponse
-from starlette.routing import Route
-from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.requests import Request
+from starlette import Route
+from starlette.middleware import TrustedHostMiddleware
+from novda.request.requests import Request
 
 # Google reCAPTCHA keys (replace with your own)
 SITE_KEY = "6Le9sc0qAAAAALMt_csagCKmkNPqF8_XnPkmBZO9"
