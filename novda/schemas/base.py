@@ -7,8 +7,18 @@ from ..exceptions import SchemaException
 
 class BaseSchemaMeta(type):
     def __repr__(cls):
-        fields = ", ".join(f"{k}: {v.__name__}" for k, v in cls.__annotations__.items())
+        def format_field(k, v):
+            """Recursively format nested schema fields."""
+            if isinstance(v, str):
+                return f"{k}: {v}"  # Handle forward references as string
+            if hasattr(v, "__annotations__"):  # If it's a schema, recurse
+                nested_fields = ", ".join(format_field(nk, nv) for nk, nv in v.__annotations__.items())
+                return f"{k}: {v.__name__}({nested_fields})"
+            return f"{k}: {v.__name__}"
+
+        fields = ", ".join(format_field(k, v) for k, v in cls.__annotations__.items())
         return f"{cls.__name__}({fields})"
+
 
 
 class BaseSchema(metaclass=BaseSchemaMeta):
