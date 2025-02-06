@@ -7,10 +7,10 @@ from http import cookies as http_cookies
 import anyio
 
 from ..utils import AwaitableOrContextManager, AwaitableOrContextManagerWrapper
-from starlette.datastructures import URL, Address, FormData, Headers, QueryParams, State
-from starlette import HTTPException
-from starlette.formparsers import FormParser, MultiPartException, MultiPartParser
-from starlette import Message, Receive, Scope, Send
+from ..utils.datastructures import URL, Address, FormData, Headers, QueryParams, State
+from ..utils import HTTPException
+from ..utils.formparsers import FormParser, MultiPartException, MultiPartParser
+from ..utils import Message, Receive, Scope, Send
 
 if typing.TYPE_CHECKING:
     from python_multipart.multipart import parse_options_header
